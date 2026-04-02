@@ -32,7 +32,7 @@ const Scene = () => {
         antialias: true,
       });
       renderer.setSize(container.width, container.height);
-      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1;
       canvasDiv.current.appendChild(renderer.domElement);
@@ -46,8 +46,19 @@ const Scene = () => {
       let headBone: THREE.Object3D | null = null;
       let screenLight: any | null = null;
       let mixer: THREE.AnimationMixer;
+      let isVisible = true;
 
       const clock = new THREE.Clock();
+
+      // Pause rendering when off-screen
+      const visibilityObserver = new IntersectionObserver(
+        ([entry]) => {
+          isVisible = entry.isIntersecting;
+          if (isVisible) clock.getDelta(); // reset clock delta after pause
+        },
+        { threshold: 0 }
+      );
+      visibilityObserver.observe(canvasDiv.current);
 
       const light = setLighting(scene);
       let progress = setProgress((value) => setLoading(value));
@@ -108,6 +119,7 @@ const Scene = () => {
       }
       const animate = () => {
         requestAnimationFrame(animate);
+        if (!isVisible) return; // skip rendering when off-screen
         if (headBone) {
           handleHeadRotation(
             headBone,

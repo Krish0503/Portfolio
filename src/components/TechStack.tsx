@@ -46,20 +46,20 @@ function SphereGeo({
   isActive,
 }: SphereProps) {
   const api = useRef<RapierRigidBody | null>(null);
+  const impulseVec = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((_state, delta) => {
     if (!isActive) return;
     delta = Math.min(0.1, delta);
+    impulseVec.set(
+      -50 * delta * scale,
+      -150 * delta * scale,
+      -50 * delta * scale
+    );
     const impulse = vec
       .copy(api.current!.translation())
       .normalize()
-      .multiply(
-        new THREE.Vector3(
-          -50 * delta * scale,
-          -150 * delta * scale,
-          -50 * delta * scale
-        )
-      );
+      .multiply(impulseVec);
 
     api.current?.applyImpulse(impulse, true);
   });
@@ -98,18 +98,17 @@ type PointerProps = {
 
 function Pointer({ vec = new THREE.Vector3(), isActive }: PointerProps) {
   const ref = useRef<RapierRigidBody>(null);
+  const targetVec = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(({ pointer, viewport }) => {
     if (!isActive) return;
-    const targetVec = vec.lerp(
-      new THREE.Vector3(
-        (pointer.x * viewport.width) / 2,
-        (pointer.y * viewport.height) / 2,
-        0
-      ),
-      0.2
+    targetVec.set(
+      (pointer.x * viewport.width) / 2,
+      (pointer.y * viewport.height) / 2,
+      0
     );
-    ref.current?.setNextKinematicTranslation(targetVec);
+    const result = vec.lerp(targetVec, 0.2);
+    ref.current?.setNextKinematicTranslation(result);
   });
 
   return (
@@ -126,29 +125,22 @@ function Pointer({ vec = new THREE.Vector3(), isActive }: PointerProps) {
 
 const TechStack = () => {
   const [isActive, setIsActive] = useState(false);
+  const techstackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY || document.documentElement.scrollTop;
-      const threshold = document
-        .getElementById("work")!
-        .getBoundingClientRect().top;
-      setIsActive(scrollY > threshold);
-    };
-    document.querySelectorAll(".header a").forEach((elem) => {
-      const element = elem as HTMLAnchorElement;
-      element.addEventListener("click", () => {
-        const interval = setInterval(() => {
-          handleScroll();
-        }, 10);
-        setTimeout(() => {
-          clearInterval(interval);
-        }, 1000);
-      });
-    });
-    window.addEventListener("scroll", handleScroll);
+    const el = techstackRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsActive(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+
     return () => {
-      window.removeEventListener("scroll", handleScroll);
+      observer.disconnect();
     };
   }, []);
   const materials = useMemo(() => {
@@ -166,8 +158,14 @@ const TechStack = () => {
     );
   }, []);
 
+  const sphereMaterials = useMemo(() => {
+    return spheres.map(
+      () => materials[Math.floor(Math.random() * materials.length)]
+    );
+  }, [materials]);
+
   return (
-    <div className="techstack">
+    <div className="techstack" ref={techstackRef}>
       <h2> My Techstack</h2>
 
       <Canvas
@@ -189,11 +187,11 @@ const TechStack = () => {
         <directionalLight position={[0, 5, -4]} intensity={2} />
         <Physics gravity={[0, 0, 0]}>
           <Pointer isActive={isActive} />
-          {spheres.map((props, i) => (
+          {sphereMaterials.map((mat, i) => (
             <SphereGeo
               key={i}
-              {...props}
-              material={materials[Math.floor(Math.random() * materials.length)]}
+              scale={spheres[i].scale}
+              material={mat}
               isActive={isActive}
             />
           ))}
